@@ -1,0 +1,85 @@
+name: CI Pipeline
+
+on:
+    push:
+        branches: [main]
+
+    pull_request:
+        branches: [main]
+
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Instalar Dependencia
+        run: npm ci
+
+      - name: Executar ESLint
+        run: npm run lint
+
+  tests:
+    needs: lint
+    runs-on: ubuntu-latest
+
+    env:
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USER: postgres
+        DB_PASSWORD: senha_teste
+        DB_NAME: pipeline_db
+
+    services:
+      postgres:
+        image: postgres:17
+
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: senha_teste
+          POSTGRES_DB: pipeline_db
+
+        ports:
+          - 5432:5432
+
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pipeline_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Instalar Dependencia
+        run: npm ci
+
+      - name: Inicializar banco de dados
+        env:
+          PGPASSWORD: ${{ env.DB_PASSWORD }}
+        run: psql -h localhost -U postgres -d pipeline_db -f database/init.sql
+        
+      - name: Executar Testes
+        run: npm test
+
+
+
+
+permissions:
+  contents: read
